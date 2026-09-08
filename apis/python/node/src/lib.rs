@@ -2538,11 +2538,9 @@ impl Node {
         }
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
 
-        let read_ptr: u64;
-
-        if ipc_present == 1 {
+        let read_ptr: u64 = if ipc_present == 1 {
             // GPU DMA pool: import IPC handle once, cache GPU buffer ptr
-            read_ptr = {
+            {
                 let cache = RECV_GPU_VA.lock().unwrap_or_else(|e| e.into_inner());
                 match cache.get(buffer_id) {
                     Some(slot_data) if slot_data.gpu_buf != 0 => {
@@ -2577,9 +2575,9 @@ impl Node {
                         gpu_ptr
                     }
                 }
-            };
+            }
         } else if effective_as_cuda {
-            read_ptr = {
+            {
                 let cache = RECV_GPU_VA.lock().unwrap_or_else(|e| e.into_inner());
                 match cache.get(buffer_id) {
                     Some(slot_data) => {
@@ -2613,13 +2611,13 @@ impl Node {
                         va + data_offset as u64
                     }
                 }
-            };
+            }
         } else {
             // On the first read the fresh mapping is cached; on subsequent
             // reads the fresh mapping is dropped and the returned pointer
             // must use the cached mapping's base (a different mmap address).
             let mut cpu_cache = RECV_CPU_SHMEM.lock().unwrap_or_else(|e| e.into_inner());
-            read_ptr = match cpu_cache.get(buffer_id) {
+            match cpu_cache.get(buffer_id) {
                 Some(cached) => cached.base + data_offset as u64,
                 None => {
                     let base = shmem_ptr as u64;
@@ -2632,8 +2630,8 @@ impl Node {
                     );
                     base + data_offset as u64
                 }
-            };
-        }
+            }
+        };
 
         // Seqlock: re-read generation — mismatch means data changed during read
         let read_gen2 = unsafe { std::ptr::read_volatile(shmem_ptr.add(96) as *const u64) };
